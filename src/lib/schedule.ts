@@ -17,13 +17,9 @@ export interface Cuota {
 
 export type Estado = "pagado" | "proximo" | "vencido" | "pendiente";
 
-/** Primer día 16 próximo (incluye hoy si hoy es 16 o antes). */
-export function primerVencimiento(base = new Date()): Date {
-  const f = new Date(base.getFullYear(), base.getMonth(), DIA_DE_PAGO);
-  if (base.getDate() > DIA_DE_PAGO) {
-    f.setMonth(f.getMonth() + 1);
-  }
-  return f;
+/** Primera fecha de pago del plan: 16 de setiembre de 2026. */
+export function primerVencimiento(): Date {
+  return new Date(2026, 8, DIA_DE_PAGO);
 }
 
 export function addMonths(d: Date, k: number): Date {
