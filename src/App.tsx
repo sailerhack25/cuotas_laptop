@@ -29,7 +29,8 @@ import {
 } from "./components/ui";
 
 const LS_PAGADAS = "planpagos.pagadas.v1";
-const LS_OFFSET = "planpagos.offset.v1";
+// v2: invalida offsets guardados por la versión que calculaba el inicio desde "hoy"
+const LS_OFFSET = "planpagos.offset.v2";
 
 const ESTADO_META: Record<Estado, { label: string; badge: string; dot: string }> = {
   pagado: { label: "Pagada", badge: "border-mint/40 bg-mint/10 text-mint", dot: "bg-mint" },
