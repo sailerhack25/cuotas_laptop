@@ -15,7 +15,7 @@ export interface Cuota {
   esUltima: boolean;
 }
 
-export type Estado = "pagado" | "proximo" | "vencido" | "pendiente";
+export type Estado = "pagado" | "proximo" | "pendiente";
 
 /** Primera fecha de pago del plan: 16 de setiembre de 2026. */
 export function primerVencimiento(): Date {

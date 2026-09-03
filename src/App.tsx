@@ -3,7 +3,6 @@ import confetti from "canvas-confetti";
 import {
   CUOTA_MENSUAL,
   DEUDA_INICIAL,
-  addMonths,
   buildSchedule,
   daysBetween,
   fmtFechaLarga,
@@ -16,7 +15,6 @@ import {
 import {
   IconCalendar,
   IconCheck,
-  IconChevron,
   IconFlag,
   IconReset,
   IconSol,
@@ -29,13 +27,10 @@ import {
 } from "./components/ui";
 
 const LS_PAGADAS = "planpagos.pagadas.v1";
-// v2: invalida offsets guardados por la versión que calculaba el inicio desde "hoy"
-const LS_OFFSET = "planpagos.offset.v2";
 
 const ESTADO_META: Record<Estado, { label: string; badge: string; dot: string }> = {
   pagado: { label: "Pagada", badge: "border-mint/40 bg-mint/10 text-mint", dot: "bg-mint" },
   proximo: { label: "Próxima", badge: "border-gold/45 bg-gold/10 text-gold", dot: "bg-gold dot-pulse" },
-  vencido: { label: "Vencida", badge: "border-coral/45 bg-coral/10 text-coral", dot: "bg-coral" },
   pendiente: { label: "Pendiente", badge: "border-pine-600/60 bg-pine-800/50 text-fog", dot: "bg-fog-dim" },
 };
 
@@ -62,15 +57,7 @@ function loadPagadas(): number[] {
     return [];
   }
 }
-function loadOffset(): number {
-  try {
-    const raw = localStorage.getItem(LS_OFFSET);
-    const n = raw === null ? 0 : parseInt(raw, 10);
-    return Number.isFinite(n) ? n : 0;
-  } catch {
-    return 0;
-  }
-}
+
 
 /* ---------- fila del cronograma ---------- */
 
@@ -199,13 +186,12 @@ function YearDivider({ year, count }: { year: number; count: number }) {
 
 export default function App() {
   const [pagadas, setPagadas] = useState<number[]>(loadPagadas);
-  const [offset, setOffset] = useState<number>(loadOffset);
   const [showBar, setShowBar] = useState(false);
   const [armReset, setArmReset] = useState(false);
   const heroRef = useRef<HTMLElement | null>(null);
 
   const today = useMemo(() => startOfDay(new Date()), []);
-  const inicio = useMemo(() => addMonths(primerVencimiento(), offset), [offset]);
+  const inicio = useMemo(() => primerVencimiento(), []);
   const cuotas = useMemo(() => buildSchedule(inicio), [inicio]);
 
   const paidSet = useMemo(
@@ -220,13 +206,6 @@ export default function App() {
       /* sin almacenamiento */
     }
   }, [paidSet]);
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_OFFSET, String(offset));
-    } catch {
-      /* sin almacenamiento */
-    }
-  }, [offset]);
 
   useEffect(() => {
     if (!armReset) return;
@@ -248,14 +227,12 @@ export default function App() {
     return c;
   }, [paidSet]);
 
-  const proxima = cuotas.find((c) => !paidSet.has(c.n) && c.fecha.getTime() >= today.getTime());
+  const proxima = cuotas.find((c) => !paidSet.has(c.n));
   const diasPara = proxima ? daysBetween(today, proxima.fecha) : null;
-  const vencidas = cuotas.filter((c) => !paidSet.has(c.n) && c.fecha.getTime() < today.getTime()).length;
 
   const estadoDe = (c: Cuota): Estado => {
     if (paidSet.has(c.n)) return "pagado";
     if (proxima && c.n === proxima.n) return "proximo";
-    if (c.fecha.getTime() < today.getTime()) return "vencido";
     return "pendiente";
   };
 
@@ -471,15 +448,22 @@ export default function App() {
                     <IconCalendar className="h-4 w-4" />
                     Próximo pago: {fmtFechaLarga(proxima.fecha)} ·{" "}
                     <span className="num">
-                      {diasPara === 0 ? "¡vence hoy!" : `en ${diasPara} ${diasPara === 1 ? "día" : "días"}`}
+                      {diasPara === null
+                        ? ""
+                        : diasPara > 1
+                          ? `en ${diasPara} días`
+                          : diasPara === 1
+                            ? "¡es mañana!"
+                            : "¡a pagar!"}
                     </span>
                   </span>
                 )
               )}
-              {vencidas > 0 && !liquidado && (
-                <span className="inline-flex items-center gap-2 rounded-md border border-coral/45 bg-coral/10 px-3 py-2 text-xs font-semibold text-coral">
-                  <span className="h-1.5 w-1.5 rounded-full bg-coral" />
-                  {vencidas} {vencidas === 1 ? "cuota vencida" : "cuotas vencidas"} por pagar
+              {proxima && !liquidado && (
+                <span className="inline-flex items-center gap-2 rounded-md border border-pine-600/70 bg-pine-800/50 px-3 py-2 text-xs text-fog">
+                  <IconStack className="h-4 w-4" />
+                  Quedan <span className="num font-semibold text-ink">{cuotas.length - paidSet.size}</span>{" "}
+                  {cuotas.length - paidSet.size === 1 ? "cuota" : "cuotas"} por pagar
                 </span>
               )}
               <span className="inline-flex items-center gap-2 rounded-md border border-pine-600/70 bg-pine-800/50 px-3 py-2 text-xs text-fog">
@@ -524,28 +508,15 @@ export default function App() {
                   </div>
                 ))}
               </dl>
-              {/* selector de inicio */}
+              {/* primer pago: fecha fija del plan */}
               <div className="mt-4 flex items-center justify-between gap-2 rounded-lg border border-pine-600/60 bg-pine-900/60 px-3 py-2.5">
-                <span className="text-xs text-fog">Primer pago</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setOffset((o) => o - 1)}
-                    aria-label="Mes anterior"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-pine-600 text-fog transition-colors hover:border-gold/60 hover:text-gold active:scale-90"
-                  >
-                    <IconChevron dir="l" className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="num min-w-[7.5rem] text-center text-sm font-semibold text-gold">
-                    16 {mesCorto(inicio)} {inicio.getFullYear()}
-                  </span>
-                  <button
-                    onClick={() => setOffset((o) => o + 1)}
-                    aria-label="Mes siguiente"
-                    className="flex h-7 w-7 items-center justify-center rounded-md border border-pine-600 text-fog transition-colors hover:border-gold/60 hover:text-gold active:scale-90"
-                  >
-                    <IconChevron dir="r" className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <span className="flex items-center gap-2 text-xs text-fog">
+                  <IconCalendar className="h-4 w-4 text-gold/80" />
+                  Primer pago
+                </span>
+                <span className="num text-sm font-semibold text-gold">
+                  16 {mesCorto(inicio)} {inicio.getFullYear()}
+                </span>
               </div>
             </div>
 
